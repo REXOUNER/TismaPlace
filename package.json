@@ -6,7 +6,7 @@
   "scripts": {
     "start": "electron .",
     "build:win": "electron-builder --win nsis --publish never",
-    "release:win": "electron-builder --win nsis --publish always"
+    "release:win": "npm run build:win && node scripts/publish-release.js"
   },
   "devDependencies": {
     "electron": "^44.9.0",
