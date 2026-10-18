@@ -1,6 +1,6 @@
 {
   "name": "tisma-place-launcher",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Launcher gaming cyberpunk pour Windows",
   "main": "main.js",
   "scripts": {
