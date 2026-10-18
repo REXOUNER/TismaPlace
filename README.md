@@ -40,26 +40,26 @@ Ces pistes sont notées pour les prochaines versions. On les réalisera progress
 - [x] **Statistiques de jeu** : temps suivi sur sept jours, classement des cinq jeux les plus joués, huit dernières sessions globales et historique consultable dans chaque fiche de jeu.
 - [x] **Collections intelligentes et ordre manuel** : vues dynamiques « À découvrir », « Favoris », « En cours » et « Terminés », avec tri par glisser-déposer sauvegardé dans chaque collection personnelle.
 - [x] **Collections personnalisées** : renommage, icônes, couvertures personnelles ou aperçu automatique des jaquettes, et réorganisation de la liste des collections.
-- [x] **Accueil personnalisable** : afficher ou masquer les widgets, réordonner l’accueil, le panneau musique, la reprise et la bibliothèque ; préférences incluses dans les sauvegardes.
+- [x] **Accueil personnalisable** : préréglages Immersion, Focus et Compact, affichage ou masquage des widgets, ordre personnalisé et préférences incluses dans les sauvegardes.
 - [x] **Gestion rapide de la bibliothèque** : sélection de plusieurs jeux visibles, affectation groupée à une collection ou retrait de la bibliothèque avec confirmation.
 - [x] **Édition groupée** : changer le statut ou le genre de plusieurs jeux, ou ajouter/retirer une étiquette en une seule action.
 - [x] **Options de lancement par jeu** : arguments personnalisés et application compagnon, enregistrés dans la sauvegarde. Le plein écran peut être demandé avec un argument pris en charge par le jeu.
 - [x] **Commandes multimédias Windows** : titre, artiste, album, lecteur actif, état lecture/pause, progression fournie par Windows, pochette et commandes adaptées aux capacités du lecteur.
 
-## Feuille de route — prochaine version
+## Feuille de route — prochaines versions
 
 Ordre proposé : d’abord rendre l’interface plus aboutie, puis ajouter des outils qui accélèrent l’organisation et le lancement des jeux.
 
-1. [ ] **Refonte visuelle de l’accueil et de la bibliothèque** : hiérarchie plus lisible, cartes de jeux plus soignées, navigation mieux mise en valeur, contraste confortable et mise en page qui s’adapte à la fenêtre.
-2. [ ] **Présentations de l’accueil** : préréglages Immersion, Focus et Compact pour choisir rapidement quels panneaux afficher et comment les disposer.
+1. [x] **Refonte visuelle de l’accueil et de la bibliothèque** : hiérarchie plus lisible, cartes de jeux plus soignées, navigation mieux mise en valeur, contraste confortable et mise en page qui s’adapte à la fenêtre.
+2. [x] **Présentations de l’accueil** : préréglages Immersion, Focus et Compact pour choisir rapidement quels panneaux afficher et comment les disposer.
 3. [ ] **Collections intelligentes personnalisées** : créer des vues automatiques avec des règles comme plateforme, genre, étiquette, statut, favoris ou absence de lancement récente.
 4. [ ] **Lancement rapide au clavier** : une fenêtre de recherche accessible par raccourci pour retrouver et lancer un jeu sans parcourir toute la bibliothèque.
 5. [ ] **Succès Steam dans les fiches de jeux** : afficher les succès débloqués et leur progression quand le jeu, le profil et l’API Steam le permettent.
-6. [ ] **Version Windows prête à partager** : préparer un installateur propre, avec raccourci et procédure de mise à jour simple.
+6. [x] **Version Windows prête à partager** : installateur Windows publié avec raccourci et mise à jour intégrée (version 1.0.2).
 
 ### Installateur et mises à jour
 
 L’installateur NSIS crée un raccourci Bureau et Menu Démarrer. Il conserve les données utilisateur lors des mises à jour et de la désinstallation. Le dépôt de publication configuré est `REXOUNER/TismaPlace`.
 
-Pour publier une nouvelle version, augmente `version` dans `package.json`, crée et pousse un tag correspondant (par exemple `v1.0.1`). GitHub Actions construira l’installateur Windows et publiera les fichiers nécessaires à la mise à jour intégrée. La première publication demandera une configuration GitHub adaptée (dépôt non vide et autorisation d’écriture depuis Actions).
+Pour publier une nouvelle version, augmente `version` dans `package.json`, crée et pousse un tag correspondant (par exemple `v1.0.2`). GitHub Actions construira l’installateur Windows et publiera les fichiers nécessaires à la mise à jour intégrée.
 
