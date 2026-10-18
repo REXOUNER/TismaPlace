@@ -1,0 +1,59 @@
+{
+  "name": "tisma-place-launcher",
+  "version": "1.0.0",
+  "description": "Launcher gaming cyberpunk pour Windows",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win nsis --publish never",
+    "release:win": "electron-builder --win nsis --publish always"
+  },
+  "devDependencies": {
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "windows-media-sessions": "1.0.3"
+  },
+  "build": {
+    "appId": "com.tisma.place.launcher",
+    "productName": "Tisma Place",
+    "directories": {
+      "output": "dist"
+    },
+    "asarUnpack": [
+      "media-key-worker.ps1"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "assets/tisma-place-installer.ico",
+      "artifactName": "Tisma-Place-Setup-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "Tisma Place",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "REXOUNER",
+        "repo": "TismaPlace",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "author": "Tisma",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/REXOUNER/TismaPlace.git"
+  }
+}
