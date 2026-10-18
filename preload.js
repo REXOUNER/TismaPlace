@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('arcade', {
   saveSteamCredentials: (steamId, apiKey) => ipcRenderer.invoke('steam:credentials:save', steamId, apiKey),
   clearSteamCredentials: () => ipcRenderer.invoke('steam:credentials:clear'),
   syncSteamPlaytime: () => ipcRenderer.invoke('steam:playtime:sync'),
+  getSteamAchievements: (appId, forceRefresh) => ipcRenderer.invoke('steam:achievements:get', appId, forceRefresh),
   addGame: game => ipcRenderer.invoke('game:add', game),
   removeGame: id => ipcRenderer.invoke('game:remove', id),
   setGamesCollection: (ids, name) => ipcRenderer.invoke('games:bulk-set-collection', ids, name),

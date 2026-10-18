@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, safeStorage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, safeStorage, shell, Menu, Tray } = require('electron');
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFile, execFileSync, spawn } = require('node:child_process');
@@ -16,13 +16,30 @@ ipcMain.handle('updates:check', async () => { if (!app.isPackaged) return { stat
 ipcMain.handle('updates:download', async () => { try { await autoUpdater.downloadUpdate(); return { status: 'downloading' }; } catch (error) { console.error('Téléchargement de mise à jour impossible :', error.message); return { status: 'error' }; } });
 ipcMain.handle('updates:install', () => { autoUpdater.quitAndInstall(false, true); return true; });
 const COVER_LOOKUP_VERSION = 2;
-let mainWindow = null;
-function createWindow() { const win = new BrowserWindow({ width: 1440, height: 920, minWidth: 1080, minHeight: 720, backgroundColor: '#090912', title: 'TISMA PLACE', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false } }); mainWindow = win; win.on('closed', () => { if (mainWindow === win) mainWindow = null; }); win.loadFile('index.html'); win.webContents.once('did-finish-load', () => { initializeMediaTracking(); }); }
+let mainWindow = null, tray = null;
+function showMainWindow() { if (!mainWindow || mainWindow.isDestroyed()) return; if (tray && !tray.isDestroyed()) tray.setToolTip('Tisma Place'); if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); mainWindow.focus(); }
+function hideMainWindowToTray() { if (tray && !tray.isDestroyed()) tray.setToolTip('Tisma Place — jeu en cours'); if (mainWindow && !mainWindow.isDestroyed()) mainWindow.hide(); }
+function createTray() {
+  if (tray) return;
+  tray = new Tray(path.join(__dirname, 'assets', 'tisma-place.ico'));
+  tray.setToolTip('Tisma Place');
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Ouvrir Tisma Place', click: showMainWindow },
+    { label: 'Masquer Tisma Place', click: hideMainWindowToTray },
+    { type: 'separator' },
+    { label: 'Quitter Tisma Place', click: () => app.quit() },
+  ]));
+  tray.on('click', showMainWindow);
+  tray.on('double-click', showMainWindow);
+}
+function restoreAfterGame() { if (activeSessions.size === 0) showMainWindow(); }
+function createWindow() { const win = new BrowserWindow({ width: 1440, height: 920, minWidth: 1080, minHeight: 720, backgroundColor: '#090912', title: 'TISMA PLACE', webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, backgroundThrottling: true } }); mainWindow = win; win.on('closed', () => { if (mainWindow === win) mainWindow = null; }); win.loadFile('index.html'); win.webContents.once('did-finish-load', () => { initializeMediaTracking(); }); }
 const libraryPath = () => path.join(app.getPath('userData'), 'library.json');
 const collectionsPath = () => path.join(app.getPath('userData'), 'collections.json');
 const collectionCoversPath = () => path.join(app.getPath('userData'), 'collection-covers.json');
 const steamCredentialsPath = () => path.join(app.getPath('userData'), 'steam-credentials.bin');
 const activeSessions = new Map();
+const steamAchievementCache = new Map();
 function readLibrary() { try { return JSON.parse(fs.readFileSync(libraryPath(), 'utf8')); } catch { return []; } }
 function writeLibrary(games) {
   const merged = [], byTitle = new Map();
@@ -302,6 +319,57 @@ ipcMain.handle('steam:credentials:get', () => ({ configured: fs.existsSync(steam
 ipcMain.handle('steam:credentials:save', (_event, steamId, apiKey) => { const id = String(steamId || '').trim(); let key = String(apiKey || '').trim(); if (!/^\d{17}$/.test(id)) throw new Error('Le SteamID doit contenir 17 chiffres.'); if (!safeStorage.isEncryptionAvailable()) throw new Error('Le chiffrement Windows n’est pas disponible.'); if (!key && fs.existsSync(steamCredentialsPath())) { try { key = JSON.parse(safeStorage.decryptString(fs.readFileSync(steamCredentialsPath()))).apiKey; } catch {} } if (!/^[a-f\d]{32}$/i.test(key)) throw new Error('La clé API Steam doit contenir 32 caractères.'); fs.writeFileSync(steamCredentialsPath(), safeStorage.encryptString(JSON.stringify({ steamId: id, apiKey: key }))); return { configured: true }; });
 ipcMain.handle('steam:credentials:clear', () => { try { fs.unlinkSync(steamCredentialsPath()); } catch {} return { configured: false }; });
 ipcMain.handle('steam:playtime:sync', async () => { if (!fs.existsSync(steamCredentialsPath())) throw new Error('Connecte ton compte Steam dans les paramètres.'); if (!safeStorage.isEncryptionAvailable()) throw new Error('Impossible de déchiffrer les identifiants Steam sur ce PC.'); let credentials; try { credentials = JSON.parse(safeStorage.decryptString(fs.readFileSync(steamCredentialsPath()))); } catch { throw new Error('Les identifiants Steam ne peuvent pas être lus. Réenregistre-les dans les paramètres.'); } const url = new URL('https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/'); url.searchParams.set('key', credentials.apiKey); url.searchParams.set('steamid', credentials.steamId); url.searchParams.set('include_appinfo', 'false'); url.searchParams.set('include_played_free_games', 'true'); const response = await fetch(url, { signal: AbortSignal.timeout(15000) }); if (!response.ok) throw new Error('Steam ne répond pas. Réessaie plus tard.'); const payload = await response.json(); const records = payload?.response?.games; if (!Array.isArray(records) || !records.length) throw new Error('Steam ne renvoie aucun jeu. Vérifie que les détails de jeux de ton profil sont publics.'); const byId = new Map(records.map(record => [String(record.appid), record])); const games = readLibrary(), syncedAt = Date.now(); let updated = 0; for (const game of games) { const record = game.steamAppId && byId.get(String(game.steamAppId)); if (!record) continue; game.steamPlaytimeMinutes = Number(record.playtime_forever) || 0; game.steamPlaytime2WeeksMinutes = Number(record.playtime_2weeks) || 0; game.localPlaytimeSeconds = 0; if (activeSessions.has(game.id)) { activeSessions.set(game.id, syncedAt); game.sessionStartedAt = syncedAt; } game.playtimeSource = 'steam'; game.steamStatsSyncedAt = syncedAt; updated++; } writeLibrary(games); return { updated }; });
+ipcMain.handle('steam:achievements:get', async (_event, appId, forceRefresh = false) => {
+  const id = String(appId || '').trim();
+  if (!/^\d{1,10}$/.test(id) || Number(id) > 4294967295) throw new Error('Identifiant Steam du jeu invalide. Relance le scan de ta bibliothèque.');
+  if (!fs.existsSync(steamCredentialsPath())) throw new Error('Connecte ton compte Steam dans les paramètres.');
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('Le chiffrement Windows n’est pas disponible.');
+  let credentials;
+  try { credentials = JSON.parse(safeStorage.decryptString(fs.readFileSync(steamCredentialsPath()))); }
+  catch { throw new Error('Les identifiants Steam ne peuvent pas être lus. Réenregistre-les dans les paramètres.'); }
+  if (!forceRefresh) {
+    const cached = steamAchievementCache.get(id);
+    if (cached && Date.now() - cached.savedAt < 15 * 60 * 1000) return cached.data;
+  }
+  const makeUrl = (method, version) => {
+    const url = new URL(`https://api.steampowered.com/ISteamUserStats/${method}/${version}/`);
+    url.searchParams.set('key', credentials.apiKey);
+    url.searchParams.set('appid', id);
+    url.searchParams.set('l', 'french');
+    if (method === 'GetPlayerAchievements') url.searchParams.set('steamid', credentials.steamId);
+    return url;
+  };
+  const fetchJson = async (url) => {
+    const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
+    if (!response.ok) throw new Error('Steam ne répond pas. Réessaie plus tard.');
+    return response.json();
+  };
+  const [schemaPayload, playerPayload] = await Promise.all([
+    fetchJson(makeUrl('GetSchemaForGame', 'v2')),
+    fetchJson(makeUrl('GetPlayerAchievements', 'v1')),
+  ]);
+  const schema = schemaPayload?.game?.availableGameStats?.achievements;
+  const playerStats = playerPayload?.playerstats;
+  if (playerStats?.success === false) throw new Error('Steam ne peut pas lire ces succès. Vérifie que les détails de jeux de ton profil sont publics.');
+  if (!Array.isArray(schema)) throw new Error('Steam ne fournit pas la liste des succès pour ce jeu.');
+  const unlockedByName = new Map((Array.isArray(playerStats?.achievements) ? playerStats.achievements : []).map(item => [item.apiname, item]));
+  const achievements = schema.map(item => {
+    const progress = unlockedByName.get(item.name) || {};
+    const unlocked = Number(progress.achieved) === 1;
+    return {
+      name: String(item.displayName || item.name || 'Succès'),
+      description: String(item.description || ''),
+      icon: String(item.icon || ''),
+      iconLocked: String(item.icongray || ''),
+      unlocked,
+      hidden: Number(item.hidden) === 1,
+      unlockedAt: Number(progress.unlocktime) || 0,
+    };
+  }).sort((a, b) => Number(b.unlocked) - Number(a.unlocked) || (b.unlockedAt - a.unlockedAt) || a.name.localeCompare(b.name, 'fr'));
+  const data = { appId: id, total: achievements.length, unlocked: achievements.filter(item => item.unlocked).length, achievements };
+  steamAchievementCache.set(id, { savedAt: Date.now(), data });
+  return data;
+});
 ipcMain.handle('game:add', (_event, game) => { if (!game?.name || !game?.executable || !path.isAbsolute(game.executable) || !fs.existsSync(game.executable)) throw new Error('Choisis un fichier de jeu valide.'); const games = readLibrary(); if (games.some(item => item.executable.toLowerCase() === game.executable.toLowerCase())) return games; games.push({ id: crypto.randomUUID(), name: String(game.name).slice(0, 80), executable: game.executable, args: Array.isArray(game.args) ? game.args.filter(arg => typeof arg === 'string') : [], workingDirectory: game.workingDirectory || path.dirname(game.executable), genre: String(game.genre || 'Autre').slice(0, 30), tags: [], status: 'À jouer', cover: '', source: game.source || 'Ajout manuel', steamAppId: game.steamAppId ? String(game.steamAppId) : undefined }); return writeLibrary(games); });
 ipcMain.handle('game:remove', (_event, id) => writeLibrary(readLibrary().filter(game => game.id !== id)));
 ipcMain.handle('game:toggle-favorite', (_event, id) => { const games = readLibrary(); const game = games.find(item => item.id === id); if (!game) throw new Error('Jeu introuvable dans la bibliothèque.'); game.favorite = !game.favorite; return writeLibrary(games); });
@@ -310,7 +378,7 @@ ipcMain.handle('games:fetch-covers', async (_event, force = false) => { const ga
 ipcMain.handle('game:choose', async () => { const result = await dialog.showOpenDialog({ title: 'Choisir le jeu à ajouter', properties: ['openFile'], filters: [{ name: 'Applications Windows', extensions: ['exe'] }] }); return result.canceled ? null : result.filePaths[0]; });
 ipcMain.handle('game:choose-companion', async () => { const result = await dialog.showOpenDialog({ title: 'Choisir une application à ouvrir avec le jeu', properties: ['openFile'], filters: [{ name: 'Applications Windows', extensions: ['exe'] }] }); return result.canceled ? null : result.filePaths[0]; });
 ipcMain.handle('game:repair', async (_event, id) => { const games = readLibrary(); const game = games.find(item => item.id === id); if (!game) throw new Error('Jeu introuvable dans la bibliothèque.'); const result = await dialog.showOpenDialog({ title: `Retrouver le fichier de ${game.name}`, properties: ['openFile'], filters: [{ name: 'Applications Windows', extensions: ['exe'] }] }); if (result.canceled) return games; game.executable = result.filePaths[0]; game.workingDirectory = path.dirname(game.executable); delete game.missingExecutable; return writeLibrary(games); });
-ipcMain.handle('game:launch', async (event, id) => { const appWindow = BrowserWindow.fromWebContents(event.sender); const games = readLibrary(); const game = games.find(item => item.id === id); if (!game || !fs.existsSync(game.executable)) throw new Error('Le fichier du jeu est introuvable.'); if (game.companionExecutable && !fs.existsSync(game.companionExecutable)) throw new Error('L’application compagnon est introuvable. Modifie son chemin dans la fiche du jeu.'); const extraArgs = String(game.launchArgs || '').match(/(?:[^\s"]+|"[^"]*")+/g)?.map(arg => arg.replace(/^"|"$/g, '')) || []; const args = [...(Array.isArray(game.args) ? game.args : []), ...extraArgs]; game.lastPlayed = Date.now(); writeLibrary(games); const child = execFile(game.executable, args, { cwd: game.workingDirectory && fs.existsSync(game.workingDirectory) ? game.workingDirectory : path.dirname(game.executable), windowsHide: false }, error => { if (error) console.error('Lancement impossible:', error.message); }); child.once('spawn', () => { if (appWindow && !appWindow.isDestroyed()) appWindow.minimize(); if (game.companionExecutable) execFile(game.companionExecutable, [], { cwd: path.dirname(game.companionExecutable), windowsHide: false }, error => { if (error) console.error('Application compagnon impossible à lancer:', error.message); }); activeSessions.set(id, Date.now()); const updated = readLibrary(), activeGame = updated.find(item => item.id === id); if (activeGame) { activeGame.sessionStartedAt = activeSessions.get(id); activeGame.launchCount = (Number(activeGame.launchCount) || 0) + 1; writeLibrary(updated); } }); child.once('close', () => finishPlaySession(id)); return true; });
+ipcMain.handle('game:launch', async (event, id) => { const appWindow = BrowserWindow.fromWebContents(event.sender); const games = readLibrary(); const game = games.find(item => item.id === id); if (!game || !fs.existsSync(game.executable)) throw new Error('Le fichier du jeu est introuvable.'); if (game.companionExecutable && !fs.existsSync(game.companionExecutable)) throw new Error('L’application compagnon est introuvable. Modifie son chemin dans la fiche du jeu.'); const extraArgs = String(game.launchArgs || '').match(/(?:[^\s"]+|"[^"]*")+/g)?.map(arg => arg.replace(/^"|"$/g, '')) || []; const args = [...(Array.isArray(game.args) ? game.args : []), ...extraArgs]; game.lastPlayed = Date.now(); writeLibrary(games); const child = execFile(game.executable, args, { cwd: game.workingDirectory && fs.existsSync(game.workingDirectory) ? game.workingDirectory : path.dirname(game.executable), windowsHide: false }, error => { if (error) console.error('Lancement impossible:', error.message); }); child.once('spawn', () => { hideMainWindowToTray(); if (game.companionExecutable) execFile(game.companionExecutable, [], { cwd: path.dirname(game.companionExecutable), windowsHide: false }, error => { if (error) console.error('Application compagnon impossible à lancer:', error.message); }); activeSessions.set(id, Date.now()); const updated = readLibrary(), activeGame = updated.find(item => item.id === id); if (activeGame) { activeGame.sessionStartedAt = activeSessions.get(id); activeGame.launchCount = (Number(activeGame.launchCount) || 0) + 1; writeLibrary(updated); } }); child.once('close', () => { const wasTracked = activeSessions.has(id); finishPlaySession(id); if (wasTracked) restoreAfterGame(); }); return true; });
 async function scanInstalledGames() {
   const candidates = [];
   const add = game => { if (game?.name && game.executable && fs.existsSync(game.executable)) candidates.push(game); };
@@ -353,6 +421,6 @@ async function scanInstalledGames() {
   return candidates.filter((game, index) => !known.has(game.executable.toLowerCase()) && candidates.findIndex(item => item.executable.toLowerCase() === game.executable.toLowerCase()) === index);
 }
 ipcMain.handle('games:scan', () => scanInstalledGames());
-app.whenReady().then(() => { clearAbandonedSessions(); seedDefaultCollections(); writeLibrary(readLibrary()); startMediaKeyWorker(); createWindow(); configureAutoUpdates(); app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); }); });
+app.whenReady().then(() => { clearAbandonedSessions(); seedDefaultCollections(); writeLibrary(readLibrary()); startMediaKeyWorker(); createTray(); createWindow(); configureAutoUpdates(); app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) createWindow(); }); });
 app.on('before-quit', () => { for (const gameId of [...activeSessions.keys()]) finishPlaySession(gameId); mediaSessionsStop?.(); if (mediaKeyWorker && !mediaKeyWorker.killed) mediaKeyWorker.stdin.end(); shutdownMediaSessions().catch(() => {}); });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

@@ -16,6 +16,7 @@ Launcher gaming Windows construit avec Electron, en français et avec une interf
 - Ajout manuel d'un fichier `.exe`.
 - Bibliothèque locale persistante, recherche, filtres, favoris et tri.
 - Lancement du jeu avec son dossier d'installation comme répertoire courant.
+- Masquage dans la zone de notification pendant une session, retour automatique à la fermeture du jeu et pause des animations de fond quand la fenêtre est cachée.
 
 Le scanner cherche un exécutable dans quelques sous-dossiers et peut nécessiter un ajustement selon la structure du jeu. Les jeux du Microsoft Store et les lanceurs qui exigent un protocole spécial ne sont pas encore détectés automatiquement.
 
@@ -29,6 +30,8 @@ Le scanner cherche un exécutable dans quelques sous-dossiers et peut nécessite
 - Commandes multimédias Windows avec statut lecture/pause, pochette, progression quand elle est fournie, et boutons adaptés aux commandes prises en charge par le lecteur.
 - Réglage direct du volume système et bouton muet dans le panneau musique.
 - Statistiques sur sept jours et nombre de lancements des jeux démarrés depuis Tisma Place.
+- Succès Steam dans les fiches des jeux compatibles : progression, état déverrouillé/verrouillé et date de déblocage.
+- Palette de lancement rapide avec Ctrl+K, résultats récents, recherche dans toute la bibliothèque et lancement par Entrée.
 
 La recherche de jaquettes nécessite une connexion Internet. Si un titre n'est pas trouvé, tu peux toujours choisir une image depuis ton PC.
 
@@ -52,14 +55,14 @@ Ordre proposé : d’abord rendre l’interface plus aboutie, puis ajouter des o
 
 1. [x] **Refonte visuelle de l’accueil et de la bibliothèque** : hiérarchie plus lisible, cartes de jeux plus soignées, navigation mieux mise en valeur, contraste confortable et mise en page qui s’adapte à la fenêtre.
 2. [x] **Présentations de l’accueil** : préréglages Immersion, Focus et Compact pour choisir rapidement quels panneaux afficher et comment les disposer.
-3. [ ] **Collections intelligentes personnalisées** : créer des vues automatiques avec des règles comme plateforme, genre, étiquette, statut, favoris ou absence de lancement récente.
-4. [ ] **Lancement rapide au clavier** : une fenêtre de recherche accessible par raccourci pour retrouver et lancer un jeu sans parcourir toute la bibliothèque.
-5. [ ] **Succès Steam dans les fiches de jeux** : afficher les succès débloqués et leur progression quand le jeu, le profil et l’API Steam le permettent.
-6. [x] **Version Windows prête à partager** : installateur Windows publié avec raccourci et mise à jour intégrée (version 1.0.2).
+3. [x] **Collections intelligentes personnalisées** : créer des vues automatiques combinant plateforme, genre, étiquette, statut, favoris et inactivité récente.
+4. [x] **Lancement rapide au clavier** : palette Ctrl+K avec recherche instantanée, jeux récents et lancement par Entrée.
+5. [x] **Succès Steam dans les fiches de jeux** : afficher les succès débloqués et leur progression quand le jeu, le profil et l’API Steam le permettent.
+6. [x] **Version Windows prête à partager** : installateur Windows généré avec raccourci et mise à jour intégrée (version 1.0.3).
 
 ### Installateur et mises à jour
 
 L’installateur NSIS crée un raccourci Bureau et Menu Démarrer. Il conserve les données utilisateur lors des mises à jour et de la désinstallation. Le dépôt de publication configuré est `REXOUNER/TismaPlace`.
 
-Pour publier une nouvelle version, augmente `version` dans `package.json`, crée et pousse un tag correspondant (par exemple `v1.0.2`). GitHub Actions construira l’installateur Windows et publiera les fichiers nécessaires à la mise à jour intégrée.
+Pour publier une nouvelle version, augmente `version` dans `package.json`, crée et pousse un tag correspondant (par exemple `v1.0.3`). GitHub Actions construira l’installateur Windows et publiera les fichiers nécessaires à la mise à jour intégrée.
 

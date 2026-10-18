@@ -125,7 +125,13 @@
     artwork.classList.add('hidden');
     fallbackArtwork.classList.remove('hidden');
   });
-  setInterval(updateProgress, 1000);
+  let progressTimer = null;
+  function syncProgressTimer() {
+    if (progressTimer) { clearInterval(progressTimer); progressTimer = null; }
+    if (!document.hidden) { updateProgress(); progressTimer = setInterval(updateProgress, 1000); }
+  }
+  document.addEventListener('visibilitychange', syncProgressTimer);
+  syncProgressTimer();
 
   for (const [button, command] of [[previous, 'previous'], [toggle, 'playPause'], [next, 'next']]) {
     button.addEventListener('click', () => {
